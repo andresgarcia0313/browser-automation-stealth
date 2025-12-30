@@ -166,6 +166,43 @@ products = search_mercadolibre("laptop gaming", visible=False)
 - Xvfb (para modo background)
 - 4GB RAM mínimo
 
+## Docker
+
+```bash
+# Construir imagen
+docker build -t browser-stealth .
+
+# Ejecutar en modo background
+docker run -it --rm browser-stealth python3 src/python/test_parallel.py
+
+# Con docker-compose
+docker-compose run browser-stealth
+```
+
+## MCP Server (Integración Claude Code)
+
+Permite controlar el navegador directamente desde Claude Code:
+
+```bash
+# Configurar en ~/.claude/settings.json
+{
+    "mcpServers": {
+        "camoufox": {
+            "command": "python3",
+            "args": ["/ruta/a/mcp-server/camoufox_mcp_server.py"]
+        }
+    }
+}
+```
+
+Ver `mcp-server/README.md` para más detalles.
+
+## Verificar Instalación
+
+```bash
+python3 test_instalacion.py
+```
+
 ## Fecha de Creación
 
 2025-12-30

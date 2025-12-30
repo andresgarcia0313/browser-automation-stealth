@@ -1,0 +1,19 @@
+# Browser Automation Stealth - Python Dependencies
+# Instalar con: pip install -r requirements.txt
+
+# Camoufox - Firefox anti-detección
+camoufox[geoip]>=0.4.11
+
+# Playwright (incluido con Camoufox pero útil tenerlo explícito)
+playwright>=1.40.0
+
+# Async support
+asyncio-throttle>=1.0.2
+
+# Utilidades
+python-dotenv>=1.0.0
+
+# Opcional: para scraping avanzado
+# beautifulsoup4>=4.12.0
+# lxml>=5.0.0
+# httpx>=0.25.0

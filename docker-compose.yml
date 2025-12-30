@@ -1,0 +1,38 @@
+version: '3.8'
+
+services:
+  browser-stealth:
+    build: .
+    container_name: browser-stealth
+    environment:
+      - DISPLAY=${DISPLAY:-:99}
+      - CAMOUFOX_HEADLESS=virtual
+    volumes:
+      # Compartir screenshots
+      - ./output:/home/browser/app/output
+      # Para modo visible (opcional)
+      - /tmp/.X11-unix:/tmp/.X11-unix:ro
+    # Recursos
+    deploy:
+      resources:
+        limits:
+          memory: 2G
+        reservations:
+          memory: 512M
+    # Comando interactivo
+    stdin_open: true
+    tty: true
+
+  # Servicio para ejecutar tests
+  test:
+    build: .
+    container_name: browser-stealth-test
+    environment:
+      - CAMOUFOX_HEADLESS=virtual
+    command: python3 -c "
+      from camoufox.sync_api import Camoufox;
+      with Camoufox(headless='virtual', i_know_what_im_doing=True) as b:
+        p = b.new_page();
+        p.goto('https://example.com');
+        print('Test OK:', p.title())
+      "
