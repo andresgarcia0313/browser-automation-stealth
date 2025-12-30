@@ -157,6 +157,8 @@ products = search_mercadolibre("laptop gaming", visible=False)
 - [Investigación de Herramientas](docs/INVESTIGACION.md) - Comparativo completo
 - [Guía de Instalación](docs/INSTALACION.md) - Paso a paso detallado
 - [Ejemplos de Uso](docs/USO.md) - Casos de uso comunes
+- [Guía de Docker](docs/DOCKER.md) - Contenedores, CI/CD, cloud deployment
+- [Configuración de Proxies](docs/PROXIES.md) - Proxies residenciales y rotación
 
 ## Requisitos del Sistema
 
