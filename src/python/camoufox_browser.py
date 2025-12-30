@@ -24,9 +24,24 @@ Usage:
 
 import sys
 import json
+import os
 from typing import Callable, Optional, Any, List, Dict
+from contextlib import contextmanager
 from camoufox.sync_api import Camoufox
 from camoufox.async_api import AsyncCamoufox
+
+@contextmanager
+def virtual_display(visible: bool):
+    if visible:
+        yield
+    else:
+        from pyvirtualdisplay import Display
+        display = Display(visible=False, size=(1920, 1080))
+        display.start()
+        try:
+            yield
+        finally:
+            display.stop()
 
 
 def browse(
@@ -58,8 +73,6 @@ def browse(
         Dict with: url, title, content (if extract_text), links (if extract_links),
                    screenshot (path if taken), action_result (if action provided)
     """
-    headless = False if visible else "virtual"
-
     result = {
         "url": url,
         "title": None,
@@ -68,47 +81,41 @@ def browse(
     }
 
     try:
-        with Camoufox(
-            headless=headless,
-            humanize=2.0 if humanize else False,
-            i_know_what_im_doing=True,  # Skip confirmation prompts
-        ) as browser:
-            page = browser.new_page()
-            page.set_default_timeout(timeout)
+        with virtual_display(visible):
+            with Camoufox(
+                headless=False,
+                humanize=2.0 if humanize else False,
+                i_know_what_im_doing=True,
+            ) as browser:
+                page = browser.new_page()
+                page.set_default_timeout(timeout)
 
-            # Navigate
-            page.goto(url, wait_until="domcontentloaded")
+                page.goto(url, wait_until="networkidle")
 
-            # Wait for specific element if requested
-            if wait_for:
-                page.wait_for_selector(wait_for, timeout=timeout)
+                if wait_for:
+                    page.wait_for_selector(wait_for, timeout=timeout)
 
-            # Get basic info
-            result["title"] = page.title()
-            result["final_url"] = page.url
+                result["title"] = page.title()
+                result["final_url"] = page.url
 
-            # Extract text if requested
-            if extract_text:
-                result["content"] = page.inner_text("body")
+                if extract_text:
+                    result["content"] = page.inner_text("body")
 
-            # Extract links if requested
-            if extract_links:
-                links = page.eval_on_selector_all(
-                    "a[href]",
-                    "elements => elements.map(e => ({text: e.innerText.trim(), href: e.href}))"
-                )
-                result["links"] = [l for l in links if l["text"]]
+                if extract_links:
+                    links = page.eval_on_selector_all(
+                        "a[href]",
+                        "elements => elements.map(e => ({text: e.innerText.trim(), href: e.href}))"
+                    )
+                    result["links"] = [l for l in links if l["text"]]
 
-            # Take screenshot if requested
-            if screenshot_path:
-                page.screenshot(path=screenshot_path, full_page=True)
-                result["screenshot"] = screenshot_path
+                if screenshot_path:
+                    page.screenshot(path=screenshot_path, full_page=True)
+                    result["screenshot"] = screenshot_path
 
-            # Execute custom action if provided
-            if action:
-                result["action_result"] = action(page)
+                if action:
+                    result["action_result"] = action(page)
 
-            result["success"] = True
+                result["success"] = True
 
     except Exception as e:
         result["error"] = str(e)
@@ -183,36 +190,46 @@ def search_mercadolibre(
     search_url = f"{base_url}/{query.replace(' ', '-')}"
 
     def extract_products(page):
-        # Wait for results to load
-        page.wait_for_selector(".ui-search-results", timeout=10000)
+        import time
+        time.sleep(3)
 
-        # Extract product data
-        products = page.eval_on_selector_all(
-            ".ui-search-result__wrapper",
-            """elements => elements.map(el => {
-                const titleEl = el.querySelector('.ui-search-item__title');
-                const priceEl = el.querySelector('.andes-money-amount__fraction');
-                const linkEl = el.querySelector('a.ui-search-link');
-                const sellerEl = el.querySelector('.ui-search-official-store-label');
-                const shippingEl = el.querySelector('.ui-search-item__shipping');
+        products = page.evaluate('''() => {
+            const results = [];
+            const cards = document.querySelectorAll(".poly-card");
 
-                return {
-                    title: titleEl ? titleEl.innerText : null,
-                    price: priceEl ? priceEl.innerText : null,
-                    link: linkEl ? linkEl.href : null,
-                    seller: sellerEl ? sellerEl.innerText : null,
-                    shipping: shippingEl ? shippingEl.innerText : null
-                };
-            })"""
-        )
+            cards.forEach(card => {
+                const img = card.querySelector("img[title]");
+                const priceEl = card.querySelector("[class*='price'] [class*='fraction'], [class*='money'] [class*='fraction']");
+                const linkEl = card.querySelector("a[href]");
+                const shippingEl = card.querySelector("[class*='shipping']");
 
-        return [p for p in products if p["title"]][:max_results]
+                if (img && priceEl) {
+                    results.push({
+                        title: img.getAttribute("title"),
+                        price: priceEl.innerText.replace(/[^0-9]/g, ""),
+                        link: linkEl ? linkEl.href : null,
+                        shipping: shippingEl ? shippingEl.innerText.trim() : null
+                    });
+                }
+            });
+            return results;
+        }''')
+
+        seen = set()
+        unique = []
+        for p in products:
+            if p["title"] and p["title"] not in seen:
+                seen.add(p["title"])
+                unique.append(p)
+        return unique[:max_results]
 
     result = browse(
         search_url,
         visible=visible,
         action=extract_products,
         humanize=True,
+        wait_for=".poly-card",
+        timeout=45000,
     )
 
     if result["success"] and result.get("action_result"):

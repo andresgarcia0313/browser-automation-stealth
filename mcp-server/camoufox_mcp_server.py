@@ -51,20 +51,26 @@ except ImportError:
     print("ERROR: Instalar camoufox con: pip install camoufox[geoip]")
     exit(1)
 
+try:
+    from pyvirtualdisplay import Display
+except ImportError:
+    Display = None
 
-# Estado global del navegador
+
 class BrowserState:
     def __init__(self):
         self.browser = None
         self.page = None
         self.context = None
+        self.display = None
 
     async def ensure_browser(self, visible: bool = False):
-        """Asegurar que el navegador está inicializado"""
         if self.browser is None:
-            headless = False if visible else "virtual"
+            if not visible and Display:
+                self.display = Display(visible=False, size=(1920, 1080))
+                self.display.start()
             self.context = AsyncCamoufox(
-                headless=headless,
+                headless=False,
                 humanize=True,
                 i_know_what_im_doing=True
             )
@@ -73,12 +79,14 @@ class BrowserState:
         return self.page
 
     async def close(self):
-        """Cerrar navegador"""
         if self.context:
             await self.context.__aexit__(None, None, None)
+        if self.display:
+            self.display.stop()
         self.browser = None
         self.page = None
         self.context = None
+        self.display = None
 
 
 state = BrowserState()
